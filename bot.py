@@ -18,6 +18,7 @@ def start(update, context, moltin_token):
     keyboard = [[InlineKeyboardButton(product['name'], callback_data=product['id'])] for product in products]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
+    context.user_data['products_keyboard'] = reply_markup
 
     update.message.reply_text('Please choose:', reply_markup=reply_markup)
 
@@ -39,16 +40,48 @@ def handle_menu(update, context, moltin_token):
         amount=product['meta']['stock']['level'],
         description=product['description']
     )
+    context.user_data['chosen_product'] = product_id
+    keyboard = [[InlineKeyboardButton(f'Buy {pcs}', callback_data=pcs) for pcs in [1, 5, 10]],
+                [InlineKeyboardButton('Back', callback_data='back')]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     context.bot.send_photo(
         caption=product_description,
         photo=image_link,
-        chat_id=query.message.chat_id
+        chat_id=query.message.chat_id,
+        reply_markup=reply_markup
     )
     context.bot.delete_message(
         chat_id=query.message.chat_id,
         message_id=query.message.message_id
     )
-    return "HANDLE_MENU"
+
+    return "HANDLE_DESCRIPTION"
+
+
+def handle_description(update, context, moltin_token):
+
+    query = update.callback_query
+    print(query.data, type(query.data))
+    if query.data == 'back':
+
+        query.message.reply_text('Please choose:', reply_markup=context.user_data['products_keyboard'])
+        context.bot.delete_message(
+            chat_id=query.message.chat_id,
+            message_id=query.message.message_id
+        )
+        return "HANDLE_MENU"
+
+    if query.data.isdigit():
+
+        add_product_to_cart(
+            token=moltin_token,
+            cart_id=query.message.chat_id,
+            product_id=context.user_data['chosen_product'],
+            quantity=int(query.data)
+        )
+        print(get_cart(moltin_token, cart_id=query.message.chat_id))
+        return "HANDLE_DESCRIPTION"
 
 
 def handle_users_reply(update, context, moltin_token):
@@ -70,6 +103,7 @@ def handle_users_reply(update, context, moltin_token):
     states_functions = {
         'START': partial(start, moltin_token=moltin_token),
         'HANDLE_MENU': partial(handle_menu, moltin_token=moltin_token),
+        'HANDLE_DESCRIPTION': partial(handle_description, moltin_token=moltin_token),
     }
     state_handler = states_functions[user_state]
 
