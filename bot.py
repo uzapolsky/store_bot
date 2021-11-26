@@ -1,14 +1,15 @@
 import os
+from functools import partial
 
 import redis
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
                           MessageHandler, Updater)
-from functools import partial
 
 from store_requests import (add_product_to_cart, create_token,
-                            get_all_products, get_cart, get_product)
+                            get_all_products, get_cart, get_product,
+                            get_product_image)
 
 _database = None
 
@@ -28,15 +29,25 @@ def handle_menu(update, context, moltin_token):
     query = update.callback_query
     product_id = query.data
     product = get_product(moltin_token, product_id)['data']
+
+    image_id = product['relationships']['main_image']['data']['id']
+    image_link = get_product_image(moltin_token, image_id)['data']['link']['href']
+
     product_description = "{name}\n\n{price} per unit\n{amount} pcs. available\n\n{description}".format(
         name=product['name'],
         price=product['meta']['display_price']['with_tax']['formatted'],
         amount=product['meta']['stock']['level'],
         description=product['description']
     )
-    context.bot.edit_message_text(text=product_description,
-                                  chat_id=query.message.chat_id,
-                                  message_id=query.message.message_id)
+    context.bot.send_photo(
+        caption=product_description,
+        photo=image_link,
+        chat_id=query.message.chat_id
+    )
+    context.bot.delete_message(
+        chat_id=query.message.chat_id,
+        message_id=query.message.message_id
+    )
     return "HANDLE_MENU"
 
 
