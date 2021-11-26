@@ -55,7 +55,7 @@ def handle_menu(update, context, moltin_token):
         
         keyboard = [[InlineKeyboardButton(f"Remove {product['name']}", callback_data=product['id'])] for product in cart['data']]
 
-        keyboard.append([InlineKeyboardButton('Back to menu', callback_data='menu')])
+        keyboard.append([InlineKeyboardButton('Back to menu', callback_data='menu')], [InlineKeyboardButton('Pay', callback_data='pay')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         query.message.reply_text(text=cart_description, reply_markup=reply_markup)
         context.bot.delete_message(
@@ -123,7 +123,7 @@ def handle_description(update, context, moltin_token):
         
         keyboard = [[InlineKeyboardButton(f"Remove {product['name']}", callback_data=product['id'])] for product in cart['data']]
 
-        keyboard.append([InlineKeyboardButton('Back to menu', callback_data='menu')])
+        keyboard.append([InlineKeyboardButton('Back to menu', callback_data='menu')], [InlineKeyboardButton('Pay', callback_data='pay')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         query.message.reply_text(text=cart_description, reply_markup=reply_markup)
         context.bot.delete_message(
@@ -137,26 +137,33 @@ def handle_cart(update, context, moltin_token):
 
     query = update.callback_query
 
-    if query.data == 'menu':
-        query.message.reply_text('Please choose:', reply_markup=context.user_data['products_keyboard'])
+    if query.data == 'pay':
+        query.message.reply_text('Send e-mail please for futher purchase')
         context.bot.delete_message(
             chat_id=query.message.chat_id,
             message_id=query.message.message_id
         )
-        return "HANDLE_MENU"
-    else:
+        return "WAITING_EMAIL"
+
+    if query.data != 'menu':
         delete_product_from_cart(
             token=moltin_token,
             cart_id=query.message.chat_id,
             product_id=query.data,
         )
 
-        query.message.reply_text('Product removed. Choose another one:', reply_markup=context.user_data['products_keyboard'])
-        context.bot.delete_message(
-            chat_id=query.message.chat_id,
-            message_id=query.message.message_id
-        )
-        return "HANDLE_MENU"
+    query.message.reply_text('Product removed. Choose another one:', reply_markup=context.user_data['products_keyboard'])
+    context.bot.delete_message(
+        chat_id=query.message.chat_id,
+        message_id=query.message.message_id
+    )
+    return "HANDLE_MENU"
+
+
+def handle_email(update, context, moltin_token):
+    
+    return "START"
+
 
 def handle_users_reply(update, context, moltin_token):
 
@@ -179,6 +186,7 @@ def handle_users_reply(update, context, moltin_token):
         'HANDLE_MENU': partial(handle_menu, moltin_token=moltin_token),
         'HANDLE_DESCRIPTION': partial(handle_description, moltin_token=moltin_token),
         'HANDLE_CART': partial(handle_cart, moltin_token=moltin_token),
+        'WAITING_EMAIL': partial(handle_email, moltin_token=moltin_token),
     }
     state_handler = states_functions[user_state]
 
