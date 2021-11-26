@@ -8,7 +8,7 @@ from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
 from functools import partial
 
 from store_requests import (add_product_to_cart, create_token,
-                            get_all_products, get_cart)
+                            get_all_products, get_cart, get_product)
 
 _database = None
 
@@ -20,17 +20,24 @@ def start(update, context, moltin_token):
 
     update.message.reply_text('Please choose:', reply_markup=reply_markup)
 
-    return "ECHO"
+    return "HANDLE_MENU"
 
 
-def echo(update, context, moltin_token):
+def handle_menu(update, context, moltin_token):
 
     query = update.callback_query
-
-    context.bot.edit_message_text(text="Selected option: {}".format(query.data),
+    product_id = query.data
+    product = get_product(moltin_token, product_id)['data']
+    product_description = "{name}\n\n{price} per unit\n{amount} pcs. available\n\n{description}".format(
+        name=product['name'],
+        price=product['meta']['display_price']['with_tax']['formatted'],
+        amount=product['meta']['stock']['level'],
+        description=product['description']
+    )
+    context.bot.edit_message_text(text=product_description,
                                   chat_id=query.message.chat_id,
                                   message_id=query.message.message_id)
-    return "ECHO"
+    return "HANDLE_MENU"
 
 
 def handle_users_reply(update, context, moltin_token):
@@ -51,7 +58,7 @@ def handle_users_reply(update, context, moltin_token):
     
     states_functions = {
         'START': partial(start, moltin_token=moltin_token),
-        'ECHO': partial(echo, moltin_token=moltin_token),
+        'HANDLE_MENU': partial(handle_menu, moltin_token=moltin_token),
     }
     state_handler = states_functions[user_state]
 
