@@ -7,9 +7,10 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
                           MessageHandler, Updater)
 
-from store_requests import (add_product_to_cart, create_token,
-                            get_all_products, get_cart, get_product,
-                            get_product_image, delete_product_from_cart)
+from store_requests import (add_product_to_cart, create_customer, create_token,
+                            delete_product_from_cart, get_all_products,
+                            get_cart, get_product,
+                            get_product_image)
 
 _database = None
 
@@ -55,7 +56,8 @@ def handle_menu(update, context, moltin_token):
         
         keyboard = [[InlineKeyboardButton(f"Remove {product['name']}", callback_data=product['id'])] for product in cart['data']]
 
-        keyboard.append([InlineKeyboardButton('Back to menu', callback_data='menu')], [InlineKeyboardButton('Pay', callback_data='pay')])
+        keyboard.append([InlineKeyboardButton('Back to menu', callback_data='menu')])
+        keyboard.append([InlineKeyboardButton('Pay', callback_data='pay')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         query.message.reply_text(text=cart_description, reply_markup=reply_markup)
         context.bot.delete_message(
@@ -123,7 +125,8 @@ def handle_description(update, context, moltin_token):
         
         keyboard = [[InlineKeyboardButton(f"Remove {product['name']}", callback_data=product['id'])] for product in cart['data']]
 
-        keyboard.append([InlineKeyboardButton('Back to menu', callback_data='menu')], [InlineKeyboardButton('Pay', callback_data='pay')])
+        keyboard.append([InlineKeyboardButton('Back to menu', callback_data='menu')])
+        keyboard.append([InlineKeyboardButton('Pay', callback_data='pay')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         query.message.reply_text(text=cart_description, reply_markup=reply_markup)
         context.bot.delete_message(
@@ -161,7 +164,12 @@ def handle_cart(update, context, moltin_token):
 
 
 def handle_email(update, context, moltin_token):
-    
+    create_customer(
+        token=moltin_token,
+        email=update.message.text,
+        chat_id=update.message.chat_id,
+    )
+    update.message.reply_text('We will connect with you soon!')
     return "START"
 
 

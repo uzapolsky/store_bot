@@ -92,3 +92,36 @@ def get_cart(token, cart_id):
     response.raise_for_status()
 
     return response.json()
+
+
+def create_customer(token, email, chat_id):
+
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json',
+    }
+
+    data = {
+        "data": {
+            "type": "customer",
+            "name": str(chat_id),
+            "email": email,
+        }
+    }
+
+    response = requests.post(f'https://api.moltin.com/v2/customers', headers=headers, json=data)
+    response.raise_for_status()
+
+    return response.json()
+
+
+def get_customer(token, customer_id):
+
+    headers = {
+        'Authorization': f'Bearer {token}',
+    }
+
+    response = requests.get(f'https://api.moltin.com/v2/customers/{customer_id}', headers=headers)
+    response.raise_for_status()
+
+    return response.json()
