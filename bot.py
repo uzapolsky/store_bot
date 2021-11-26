@@ -62,7 +62,6 @@ def handle_menu(update, context, moltin_token):
 def handle_description(update, context, moltin_token):
 
     query = update.callback_query
-    print(query.data, type(query.data))
     if query.data == 'back':
 
         query.message.reply_text('Please choose:', reply_markup=context.user_data['products_keyboard'])
@@ -80,7 +79,6 @@ def handle_description(update, context, moltin_token):
             product_id=context.user_data['chosen_product'],
             quantity=int(query.data)
         )
-        print(get_cart(moltin_token, cart_id=query.message.chat_id))
         return "HANDLE_DESCRIPTION"
 
 
