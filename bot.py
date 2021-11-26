@@ -9,14 +9,33 @@ from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
 
 from store_requests import (add_product_to_cart, create_token,
                             get_all_products, get_cart, get_product,
-                            get_product_image)
+                            get_product_image, delete_product_from_cart)
 
 _database = None
+
+
+def make_cart_description(cart):
+
+    cart_description = ""
+    for product in cart['data']:
+        product_description = \
+            "{name}\n{description}\n{price} per unit\n{quantity} pcs. in cart for {total_price}\n\n".format(
+                name=product['name'],
+                price=product['meta']['display_price']['with_tax']['unit']['formatted'],
+                total_price=product['meta']['display_price']['with_tax']['value']['formatted'],
+                quantity=product['quantity'],
+                description=product['description']
+            )   
+        cart_description += product_description
+    cart_description += f"Total: {cart['meta']['display_price']['with_tax']['formatted']}"
+
+    return cart_description
+
 
 def start(update, context, moltin_token):
     products = get_all_products(moltin_token)['data']
     keyboard = [[InlineKeyboardButton(product['name'], callback_data=product['id'])] for product in products]
-
+    keyboard.append([InlineKeyboardButton('Cart', callback_data='cart')])
     reply_markup = InlineKeyboardMarkup(keyboard)
     context.user_data['products_keyboard'] = reply_markup
 
@@ -28,6 +47,23 @@ def start(update, context, moltin_token):
 def handle_menu(update, context, moltin_token):
 
     query = update.callback_query
+
+    if query.data == 'cart':
+        cart = get_cart(token=moltin_token, cart_id=query.message.chat_id)
+        
+        cart_description = make_cart_description(cart)
+        
+        keyboard = [[InlineKeyboardButton(f"Remove {product['name']}", callback_data=product['id'])] for product in cart['data']]
+
+        keyboard.append([InlineKeyboardButton('Back to menu', callback_data='menu')])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        query.message.reply_text(text=cart_description, reply_markup=reply_markup)
+        context.bot.delete_message(
+            chat_id=query.message.chat_id,
+            message_id=query.message.message_id
+        )
+        return "HANDLE_CART"
+
     product_id = query.data
     product = get_product(moltin_token, product_id)['data']
 
@@ -42,7 +78,7 @@ def handle_menu(update, context, moltin_token):
     )
     context.user_data['chosen_product'] = product_id
     keyboard = [[InlineKeyboardButton(f'Buy {pcs}', callback_data=pcs) for pcs in [1, 5, 10]],
-                [InlineKeyboardButton('Back', callback_data='back')]]
+                [InlineKeyboardButton('Cart', callback_data='cart'), InlineKeyboardButton('Back', callback_data='back')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     context.bot.send_photo(
@@ -62,8 +98,8 @@ def handle_menu(update, context, moltin_token):
 def handle_description(update, context, moltin_token):
 
     query = update.callback_query
-    if query.data == 'back':
 
+    if query.data == 'back':
         query.message.reply_text('Please choose:', reply_markup=context.user_data['products_keyboard'])
         context.bot.delete_message(
             chat_id=query.message.chat_id,
@@ -72,7 +108,6 @@ def handle_description(update, context, moltin_token):
         return "HANDLE_MENU"
 
     if query.data.isdigit():
-
         add_product_to_cart(
             token=moltin_token,
             cart_id=query.message.chat_id,
@@ -81,6 +116,47 @@ def handle_description(update, context, moltin_token):
         )
         return "HANDLE_DESCRIPTION"
 
+    if query.data == 'cart':
+        cart = get_cart(token=moltin_token, cart_id=query.message.chat_id)
+        
+        cart_description = make_cart_description(cart)
+        
+        keyboard = [[InlineKeyboardButton(f"Remove {product['name']}", callback_data=product['id'])] for product in cart['data']]
+
+        keyboard.append([InlineKeyboardButton('Back to menu', callback_data='menu')])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        query.message.reply_text(text=cart_description, reply_markup=reply_markup)
+        context.bot.delete_message(
+            chat_id=query.message.chat_id,
+            message_id=query.message.message_id
+        )
+        return "HANDLE_CART"
+
+
+def handle_cart(update, context, moltin_token):
+
+    query = update.callback_query
+
+    if query.data == 'menu':
+        query.message.reply_text('Please choose:', reply_markup=context.user_data['products_keyboard'])
+        context.bot.delete_message(
+            chat_id=query.message.chat_id,
+            message_id=query.message.message_id
+        )
+        return "HANDLE_MENU"
+    else:
+        delete_product_from_cart(
+            token=moltin_token,
+            cart_id=query.message.chat_id,
+            product_id=query.data,
+        )
+
+        query.message.reply_text('Product removed. Choose another one:', reply_markup=context.user_data['products_keyboard'])
+        context.bot.delete_message(
+            chat_id=query.message.chat_id,
+            message_id=query.message.message_id
+        )
+        return "HANDLE_MENU"
 
 def handle_users_reply(update, context, moltin_token):
 
@@ -102,6 +178,7 @@ def handle_users_reply(update, context, moltin_token):
         'START': partial(start, moltin_token=moltin_token),
         'HANDLE_MENU': partial(handle_menu, moltin_token=moltin_token),
         'HANDLE_DESCRIPTION': partial(handle_description, moltin_token=moltin_token),
+        'HANDLE_CART': partial(handle_cart, moltin_token=moltin_token),
     }
     state_handler = states_functions[user_state]
 
