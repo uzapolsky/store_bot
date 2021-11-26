@@ -2,28 +2,38 @@ import os
 
 import redis
 from dotenv import load_dotenv
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (CallbackQueryHandler, CommandHandler, Filters,
                           MessageHandler, Updater)
+from functools import partial
 
 from store_requests import (add_product_to_cart, create_token,
                             get_all_products, get_cart)
 
 _database = None
 
-def start(update, context):
+def start(update, context, moltin_token):
+    products = get_all_products(moltin_token)['data']
+    keyboard = [[InlineKeyboardButton(product['name'], callback_data=product['id'])] for product in products]
 
-    update.message.reply_text(text='Привет!')
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    update.message.reply_text('Please choose:', reply_markup=reply_markup)
+
     return "ECHO"
 
 
-def echo(update, context):
+def echo(update, context, moltin_token):
 
-    users_reply = update.message.text
-    update.message.reply_text(users_reply)
+    query = update.callback_query
+
+    context.bot.edit_message_text(text="Selected option: {}".format(query.data),
+                                  chat_id=query.message.chat_id,
+                                  message_id=query.message.message_id)
     return "ECHO"
 
 
-def handle_users_reply(update, context):
+def handle_users_reply(update, context, moltin_token):
 
     db = get_database_connection()
     if update.message:
@@ -40,8 +50,8 @@ def handle_users_reply(update, context):
         user_state = db.get(chat_id).decode("utf-8")
     
     states_functions = {
-        'START': start,
-        'ECHO': echo
+        'START': partial(start, moltin_token=moltin_token),
+        'ECHO': partial(echo, moltin_token=moltin_token),
     }
     state_handler = states_functions[user_state]
 
@@ -65,10 +75,11 @@ def get_database_connection():
 
 if __name__ == '__main__':
     load_dotenv()
-    token = os.getenv("TG_BOT_TOKEN")
-    updater = Updater(token)
+    moltin_token = create_token(os.getenv("MOLTIN_CLIENT_ID"))
+    tg_token = os.getenv("TG_BOT_TOKEN")
+    updater = Updater(tg_token)
     dispatcher = updater.dispatcher
-    dispatcher.add_handler(CallbackQueryHandler(handle_users_reply))
-    dispatcher.add_handler(MessageHandler(Filters.text, handle_users_reply))
-    dispatcher.add_handler(CommandHandler('start', handle_users_reply))
+    dispatcher.add_handler(CallbackQueryHandler(partial(handle_users_reply, moltin_token=moltin_token)))
+    dispatcher.add_handler(MessageHandler(Filters.text, partial(handle_users_reply, moltin_token=moltin_token)))
+    dispatcher.add_handler(CommandHandler('start', partial(handle_users_reply, moltin_token=moltin_token)))
     updater.start_polling()
